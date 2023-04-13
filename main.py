@@ -37,8 +37,11 @@ def plot_correspondaces(img1, img2, corresp):
 # Read the images
 ##################
 
-image1 = iio.imread(uri='insert_Relative_path1.JPG')
-image2 = iio.imread(uri='insert_Relative_path2.JPG')
+image1 = iio.imread(uri='input1\image-3.jpeg')
+image2 = iio.imread(uri='input1\image-4.jpeg')
+
+# image1 = iio.imread(uri='input2\cast-left-1.jpg')
+# image2 = iio.imread(uri='input2\cast-right-1.jpg')
 
 # convert to grey images
 grey_img1 = rgb_to_gray(image1)

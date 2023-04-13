@@ -35,7 +35,7 @@ def find_correspondances(img1, img2, features1, features2):
      - list of pairs (tuples) of matching points
     """
     corresp = []
-    threshold = 0.5
+    threshold = 0.1
 
     for pt1 in features1:
         for pt2 in features2:

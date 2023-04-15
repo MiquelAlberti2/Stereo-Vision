@@ -8,11 +8,11 @@ def compute_NCC(img1, img2, pt1, pt2):
     x1, y1 = pt1[0], pt1[1]
     x2, y2 = pt2[0], pt2[1]
 
-    if x1>n-1 and x1<img1.shape[0]-n and y1>n-1 and y1<img1.shape[1]-n:
-        patch1=img1[x1-n:x1+n+1, y1-n:y1+n+1]
+    if x1>n-1 and x1<img1.shape[1]-n and y1>n-1 and y1<img1.shape[0]-n:
+        patch1=img1[y1-n:y1+n+1, x1-n:x1+n+1]
 
-    if x2>n-1 and x2<img2.shape[0]-n and y2>n-1 and y2<img2.shape[1]-n:
-        patch2=img2[x2-n:x2+n+1, y2-n:y2+n+1] 
+    if x2>n-1 and x2<img2.shape[1]-n and y2>n-1 and y2<img2.shape[0]-n:
+        patch2=img2[y2-n:y2+n+1, x2-n:x2+n+1] 
 
     # Compute the mean and variance of each patch
     mean1 = np.mean(patch1)

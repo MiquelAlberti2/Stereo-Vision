@@ -23,13 +23,22 @@ def compute_candidate_fundamental_matrix(corresp):
     At = np.transpose(A)
 
     # compute the SVD of A^t A
-    u, s, vh = np.linalg.svd(np.matmul(At,A))
+    u, s, vh = np.linalg.svd(At @ A)
 
     # h is the column of U associated with the smallest singular value in S
     min_i = np.argmin(s)
     column_result = u[:,min_i]
 
-    return np.reshape(column_result, (3, 3))
+    F = np.reshape(column_result, (3, 3))
+
+    # enforce that F must have rank 2
+    u, s, vh = np.linalg.svd(F)
+    smallest_sv_i = np.argmin(s)
+    s[smallest_sv_i] = 0
+
+    F = u @ np.diag(s) @ vh
+
+    return F
 
 
 def estimate_fundamental_matrix_RANSAC(corresp):
@@ -92,4 +101,3 @@ def estimate_fundamental_matrix_RANSAC(corresp):
         
     # Compute the final fundamental matrix with all inliers
     return compute_candidate_fundamental_matrix(best_inliers), best_inliers
-

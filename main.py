@@ -7,8 +7,7 @@ from skimage import draw
 from harris_corner_detector import detect_features
 from NCC import find_correspondances
 from fundamental_matrix_RANSAC import estimate_fundamental_matrix_RANSAC
-from disparity_map import compute_dense_disparity_map
-
+from disparity_map import dense_disparity_map
 
 def rgb_to_gray(rgb):
 
@@ -28,7 +27,7 @@ def plot_correspondaces(img1, img2, corresp):
     for match in corresp:
         pt1 = match[0]
         pt2 = match[1]
-        r, c = draw.line(pt1[0], pt1[1], pt2[0] + img1.shape[0], pt2[1])
+        r, c = draw.line(pt1[1], pt1[0], pt2[1] + img1.shape[0], pt2[0])
         ax.plot(c, r, linewidth=0.4, color='blue')
 
     plt.show()
@@ -56,14 +55,14 @@ features1 = detect_features(grey_img1)
 
 # visualize the detected corners
 plt.imshow(image1, cmap='gray')
-plt.plot(features1[:, 1], features1[:, 0], 'r.', markersize=5)
+plt.plot(features1[:, 0], features1[:, 1], 'r.', markersize=5)
 plt.show()
 
 features2 = detect_features(grey_img2)
 
 # visualize the detected corners
 plt.imshow(image2, cmap='gray')
-plt.plot(features2[:, 1], features2[:, 0], 'r.', markersize=5)
+plt.plot(features2[:, 0], features2[:, 1], 'r.', markersize=5)
 plt.show()
 
 
@@ -84,6 +83,8 @@ plot_correspondaces(grey_img1, grey_img2, corresp)
 
 fund_matrix, inliers = estimate_fundamental_matrix_RANSAC(corresp)
 
+print('Fundamental matrix:\n', fund_matrix)
+
 print("\nNumber of inliers after RANSAC: ", len(inliers))
 # plot the correspondaces between the two images
 plot_correspondaces(grey_img1, grey_img2, inliers)
@@ -92,22 +93,25 @@ plot_correspondaces(grey_img1, grey_img2, inliers)
 # Compute a dense disparity map
 ##################
 
-vertical_disparity, horizontal_disparity, disparity_vector = compute_dense_disparity_map()
+# define n that constraints the search space
+n = 20
+
+dx, dy, d = dense_disparity_map(fund_matrix, n, grey_img1, grey_img2)
 
 # Display the resulting images
-plt.imshow(vertical_disparity)
+plt.imshow(dx)
 plt.show()
 
-plt.imshow(horizontal_disparity)
+plt.imshow(dy)
 plt.show()
 
-plt.imshow(disparity_vector)
+plt.imshow(d)
 plt.show()
 
 
 # write the reults to disk
-iio.imwrite(uri="output/vertical_disparity.png", image=vertical_disparity)
-iio.imwrite(uri="output/horizontal_disparity.png", image=horizontal_disparity)
-iio.imwrite(uri="output/disparity_vector.png", image=disparity_vector)
+iio.imwrite(uri="output/vertical_disparity.png", image=dx)
+iio.imwrite(uri="output/horizontal_disparity.png", image=dy)
+iio.imwrite(uri="output/disparity_vector.png", image=d)
 
 

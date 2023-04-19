@@ -90,7 +90,7 @@ def estimate_fundamental_matrix_RANSAC(corresp):
             best_score = score
             print("current best score: ", best_score)
 
-            if best_score > max((4*len(corresp)/5),8):
+            if best_score > max(0.7*len(corresp),8):
                 # Is good enough
                 exit=True
 

@@ -7,7 +7,6 @@ from skimage import draw
 from harris_corner_detector import detect_features
 from NCC import find_correspondances
 from fundamental_matrix_RANSAC import estimate_fundamental_matrix_RANSAC
-from disparity_map import dense_disparity_map
 
 def rgb_to_gray(rgb):
 
@@ -24,11 +23,14 @@ def plot_correspondaces(img1, img2, corresp):
     fig, ax = plt.subplots(figsize=(10,10))
     ax.imshow(img3, cmap='gray')
 
+    colors=['red', 'blue', 'cyan', 'magenta','yellow']
+    i = 0
     for match in corresp:
         pt1 = match[0]
         pt2 = match[1]
         r, c = draw.line(pt1[1], pt1[0], pt2[1] + img1.shape[0], pt2[0])
-        ax.plot(c, r, linewidth=0.4, color='blue')
+        ax.plot(c, r, linewidth=1, color=colors[i%(len(colors))])
+        i+=1
 
     plt.show()
 
@@ -39,8 +41,8 @@ def plot_correspondaces(img1, img2, corresp):
 image1 = iio.imread(uri='input1\image-3.jpeg')
 image2 = iio.imread(uri='input1\image-4.jpeg')
 
-# image1 = iio.imread(uri='input2\cast-left-1.jpg')
-# image2 = iio.imread(uri='input2\cast-right-1.jpg')
+#image1 = iio.imread(uri='input2\cast-left-1.jpg')
+#image2 = iio.imread(uri='input2\cast-right-1.jpg')
 
 # convert to grey images
 grey_img1 = rgb_to_gray(image1)
@@ -83,35 +85,10 @@ plot_correspondaces(grey_img1, grey_img2, corresp)
 
 fund_matrix, inliers = estimate_fundamental_matrix_RANSAC(corresp)
 
-print('Fundamental matrix:\n', fund_matrix)
-
 print("\nNumber of inliers after RANSAC: ", len(inliers))
 # plot the correspondaces between the two images
 plot_correspondaces(grey_img1, grey_img2, inliers)
 
-##################
-# Compute a dense disparity map
-##################
-
-# define n that constraints the search space
-n = 20
-
-dx, dy, d = dense_disparity_map(fund_matrix, n, grey_img1, grey_img2)
-
-# Display the resulting images
-plt.imshow(dx)
-plt.show()
-
-plt.imshow(dy)
-plt.show()
-
-plt.imshow(d)
-plt.show()
-
-
-# write the reults to disk
-iio.imwrite(uri="output/vertical_disparity.png", image=dx)
-iio.imwrite(uri="output/horizontal_disparity.png", image=dy)
-iio.imwrite(uri="output/disparity_vector.png", image=d)
+print(fund_matrix)
 
 

@@ -3,7 +3,7 @@ import numpy as np
 
 def compute_NCC(img1, img2, pt1, pt2):
     # compute NCC of a neighbourhood around pt1 and pt2 of size 2n+1
-    n = 3
+    n = 5
 
     x1, y1 = pt1[0], pt1[1]
     x2, y2 = pt2[0], pt2[1]
@@ -35,7 +35,7 @@ def find_correspondances(img1, img2, features1, features2):
      - list of pairs (tuples) of matching points
     """
     corresp = []
-    threshold = 0.1
+    threshold = 0.8
 
     for pt1 in features1:
         for pt2 in features2:

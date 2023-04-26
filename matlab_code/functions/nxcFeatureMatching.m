@@ -1,0 +1,221 @@
+function [match,score,aux] = nxcFeatureMatching(patchSize,A,B,imageA,imageB)
+%%nxcFeatureMatching Normalized cross correlations between features of 2 images.
+%   [MATCH,SCORE] = nxcFeatureMatching(PATCHSIZE,A,B,IMAGEA,IMAGEB) uses a
+%   template of size PATCHSIZE centered around each feature from A and locates
+%   the location with the maximum normalized cross-correlation in IMAGEB, where
+%   IMAGEA provides the image data for the patch.  Then, it locates the feature
+%   from B closest to that maximum location and returns that MATCH, alongside
+%   the SCORE of the normalized cross-correlation.
+%
+%   MATCH is returned as a 1-by-2 cell array where the first cell contains each
+%   [ROW COL] of features from A with corresponding matches to the [ROW COL]
+%   entries of features from B within the second cell.  SCORE is their
+%   respective match score from the normalized cross-correlation.
+%
+%   [MATCH,SCORE,AUX] = nxcFeatureMatching also returns AUX, an intermediate
+%   struct used to find the best match.
+%
+%   nxcFeatureMatching initially assumes inputs A and B to be logical matrices
+%   indicating the features of both images, then performs a feature search
+%   minimizing distance from the actual correlation peak.  If A and B are
+%   actually arrays of [X; Y; 1] col vectors, then nxcFeatureMatching simply
+%   finds the feature from B with the highest score, regardless of where the
+%   actual peak is.
+%
+%   The above functionality -- only testing the scores of each feature from B
+%   provided the [X; Y; 1] vectors -- is intended for use in the epipolar line
+%   search instead of general feature matching.  It disregards some additional
+%   processing (e.g. removing redundant pairs) originally present in the search.
+%
+%   Contact:        wu.kevi@northeastern.edu
+%   Last updated:   April 17, 2023
+
+
+% Check if inputs A and B are logical matrices or feature vectors [ROW; COL; S]
+isInputFeatureVector = (size(A,1) == 3) && (size(B,1) == 3); % assume sufficient
+if isInputFeatureVector
+    imageDimA = size(imageA);
+    rowA = A(2,:)';
+    colA = A(1,:)';
+    rowB = B(2,:)';
+    colB = B(1,:)';
+else % logical matrices to row-column subscript
+    imageDimA = size(A);
+    imageDimB = size(B);
+    idxA = find(A); % linear indices
+    idxB = find(B);
+    [rowA,colA] = ind2sub(imageDimA,idxA);
+    [rowB,colB] = ind2sub(imageDimB,idxB);
+end
+
+
+% Get image patches centered on features from A
+% - Buffer
+numA = length(rowA);
+Features(1:numA) = struct;
+drow = (-floor((patchSize(1) - 1)/2):+floor(patchSize(1)/2));
+dcol = (-floor((patchSize(2) - 1)/2):+floor(patchSize(2)/2));
+rowdxA = rowA + drow;
+coldxA = colA + dcol;
+% - Loop through each feature of A
+for i = 1:numA
+    % -- Record location of feature in A
+    Features(i).A = [rowA(i) colA(i)];
+    % -- Get dimensions of patch centered on feature
+    rowdx = rowdxA(i,:);
+    coldx = coldxA(i,:);
+    % -- Offset patch if needed to keep in bounds of image
+    offset = [0 0];
+    if (rowdx(1) < 1)
+        assert(rowdx(end) <= imageDimA(1),'Patch size too large.');
+        offset(1) = 1 - rowdx(1);
+    elseif (rowdx(end) > imageDimA(1))
+        assert(rowdx(1) >= 1,'Patch size too large.');
+        offset(1) = imageDimA(1) - rowdx(end);
+    end
+    if (coldx(1) < 1)
+        assert(coldx(end) <= imageDimA(2),'Patch size too large.');
+        offset(2) = 1 - coldx(1);
+    elseif (coldx(end) > imageDimA(2))
+        assert(coldx(1) >= 1,'Patch size too large.');
+        offset(2) = imageDimA(2) - coldx(end);
+    end
+    rowdx = rowdx + offset(1);
+    coldx = coldx + offset(2);
+    % -- Record offset
+    Features(i).offset = offset;
+    % -- Record center
+    Features(i).center = [rowdx(floor((length(rowdx) + 1)/2)) ...
+                          coldx(floor((length(coldx) + 1)/2))];
+    % -- Record image patch
+    Features(i).patchA = imageA(rowdx,coldx);
+end
+
+
+% Use this code for diagnostics
+% figure;
+%     imshow(imageA);
+%     hold on;
+%     showFeatures(A);
+%     title('A');
+% figure;
+%     imshow(imageB);
+%     hold on;
+%     showFeatures(B);
+%     title('B');
+
+
+% Obtain normalized cross-correlations for each feature from A to B
+% - Buffer
+doubleImageB = double(imageB);
+% - Compute normalized cross-correlation against B
+for i = 1:numA
+    Features(i).nxcB = computeNxc(double(Features(i).patchA),doubleImageB);
+end
+
+
+% Match feature closest to peak OR use feature with highest score
+matchFeatureClosestToPeak = ~isInputFeatureVector; % TODO: allow user to input
+if matchFeatureClosestToPeak
+    for i = 1:numA
+        % -- Find peak and corresponding location in image B
+        [yMax,xMax] = find(Features(i).nxcB == max(Features(i).nxcB,[],'all'));
+        % -- Record peak
+        Features(i).peakB = [yMax xMax];
+        % -- Apply or remove offset to locate hypothetical matching feature B
+        locMaxInB = [yMax xMax] - Features(i).offset;
+        % -- Get score of feature closest to location, within reason (10)
+        featureDistance = sqrt(sum((locMaxInB(1,:) - [rowB colB]).^2,2));
+        [distanceMin,distanceIdx] = min(featureDistance);
+        if (distanceMin < 10)
+            locClosestFeatureB = [rowB(distanceIdx) colB(distanceIdx)];
+            scoreB = Features(i).nxcB(locClosestFeatureB(1), ...
+                                      locClosestFeatureB(2));
+            rowdx = Features(i).peakB(1) + drow;
+            coldx = Features(i).peakB(2) + dcol;
+            Features(i).patchB = imageB(rowdx,coldx);
+        else % toss out
+            locClosestFeatureB = nan(1,2);
+            scoreB = 0;
+        end
+        % -- Record feature found
+        Features(i).B = locClosestFeatureB;
+        Features(i).score = scoreB;
+    end
+else % just use feature with best score (e.g. in epipolar line search)
+    % -- Locate each feature from B (e.g. each point along line) without offset
+    offRowB = rowB - Features(i).offset(1);
+    offColB = colB - Features(i).offset(2);
+    % -- Get scores for each point
+    scoreB = diag(Features(i).nxcB(offRowB,offColB));
+    % -- Locate feature with highest score
+    [scoreB,isMax] = max(scoreB);
+    % -- Record feature found
+    Features(i).B = [offRowB(isMax) offColB(isMax)];
+    Features(i).score = scoreB;
+end
+
+
+% Use this code for diagnostics
+% centerY = floor((size(Features(i).patchA,1) + 1)/2);
+% centerX = floor((size(Features(i).patchA,2) + 1)/2);
+% figure;
+% subplot(1,2,1);
+%     imshow(Features(i).patchA);
+%     hold on;
+%     temp = false(size(Features(i).patchA));
+%     temp(centerY - Features(i).offset(1), ...
+%          centerX - Features(i).offset(2)) = true;
+%     showFeatures(temp);
+% subplot(1,2,2);
+%     imshow(Features(i).patchB);
+%     hold on;
+%     temp = false(size(temp));
+%     temp(centerY - (Features(i).peakB(1) - Features(i).B(1)), ...
+%          centerX - (Features(i).peakB(2) - Features(i).B(2))) = true;
+%     showFeatures(temp);
+
+
+% Check for repeat matches in B
+if matchFeatureClosestToPeak
+    locB = vertcat(Features.B);
+    scoreB = vertcat(Features.score);
+    for i = 1:length(scoreB)
+        % - See if any feature repeats
+        isRepeat = (locB(i,1) == locB((i + 1):end,1)) ...
+                   & (locB(i,2) == locB((i + 1):end,2));
+        % - Eliminate lower score(s) if repeat found
+        if any(isRepeat)
+            entryRepeat = find([false(i - 1,1); true; isRepeat]);
+            scoreRepeat = scoreB(entryRepeat);
+            scoreB(entryRepeat(scoreRepeat ~= max(scoreRepeat))) = 0;
+        end
+    end
+end
+
+
+% Toss out zeroes (and repeats)
+if matchFeatureClosestToPeak
+    Features = Features(scoreB ~= 0);
+    scoreB = scoreB(scoreB ~= 0);
+end
+
+
+% Sort by match scores
+if matchFeatureClosestToPeak
+    [~,sortdx] = sort(scoreB,'descend');
+else
+    sortdx = (1:length(scoreB))';
+end
+Features = Features(sortdx);
+matchA = vertcat(Features.A);
+matchB = vertcat(Features.B);
+match = {matchA matchB};
+score = vertcat(Features.score);
+
+
+% Output auxiliary info
+aux = Features;
+
+
+end
